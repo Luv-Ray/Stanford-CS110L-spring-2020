@@ -15,8 +15,11 @@ fn main() {
     // Milestone 1: Get the target Process using psutils::get_target()
     match ps_utils::get_target(target) {
         Ok(Some(process)) => {
-            let fds = process.list_fds().unwrap();
-            println!("{:?}", fds);
+            process.print();
+            let children = ps_utils::get_child_processes(process.pid).expect("No children");
+            for child in children {
+                child.print();
+            }
         },
         Ok(None) => {
             println!("Target \"{}\" did not match any running PIDs or executables", target);
