@@ -33,6 +33,9 @@ impl Debugger {
         loop {
             match self.get_next_command() {
                 DebuggerCommand::Run(args) => {
+                    if let Some(inferior) = self.inferior.as_mut() {
+                        inferior.kill();
+                    }
                     if let Some(inferior) = Inferior::new(&self.target, &args) {
                         // Create the inferior
                         self.inferior = Some(inferior);
@@ -40,8 +43,16 @@ impl Debugger {
                         // to the Inferior object
                         match self.inferior.as_mut().unwrap().continue_run() {
                             Ok(message) => {
-                                if let Status::Exited(num) = message {
-                                    println!("Child exited (status {})", num);
+                                match message {
+                                    Status::Exited(num) => {
+                                        println!("Child exited (status {})", num);
+                                    },
+                                    Status::Signaled(signal) => {
+                                        println!("Child signaled (signal {})", signal);
+                                    },
+                                    Status::Stopped(signal, _size) => {
+                                        println!("Child stopped (signal {})", signal);
+                                    }
                                 }
                             }
                             Err(e) => { println!("{e}"); }
@@ -51,7 +62,27 @@ impl Debugger {
                     }
                 }
                 DebuggerCommand::Quit => {
+                    if let Some(inferior) = self.inferior.as_mut() {
+                        inferior.kill();
+                    }
                     return;
+                }
+                DebuggerCommand::Continue => {
+                    match self.inferior.as_mut() {
+                        Some(inferior) => {
+                            match inferior.continue_run() {
+                                Ok(message) => {
+                                    if let Status::Exited(num) = message {
+                                        println!("Child exited (status {})", num);
+                                    }
+                                }
+                                Err(e) => { println!("{e}"); }
+                            }
+                        }
+                        None => {
+                            println!("No process running.");
+                        }
+                    }
                 }
             }
         }

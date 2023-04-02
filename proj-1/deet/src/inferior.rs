@@ -70,4 +70,11 @@ impl Inferior {
         ptrace::cont(self.pid(), None)?;
         self.wait(None)
     }
+
+    pub fn kill(&mut self) {
+        println!("Killing running inferior (pid {})", self.pid());
+        if let Err(e) = Child::kill(&mut self.child) {
+            println!("kill process error: {}", e);
+        }
+    }
 }
