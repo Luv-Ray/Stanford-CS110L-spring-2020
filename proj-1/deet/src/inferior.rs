@@ -6,6 +6,8 @@ use std::process::Child;
 use std::process::Command;
 use std::os::unix::process::CommandExt;
 
+use crate::dwarf_data;
+
 pub enum Status {
     /// Indicates inferior stopped. Contains the signal that stopped the process, as well as the
     /// current instruction pointer that it is stopped at.
@@ -76,5 +78,21 @@ impl Inferior {
         if let Err(e) = Child::kill(&mut self.child) {
             println!("kill process error: {}", e);
         }
+    }
+
+    pub fn print_backtrace(&self, debug_data: &dwarf_data::DwarfData) -> Result<(), nix::Error> {
+        if let Ok(reg) = ptrace::getregs(self.pid()) {
+            let mut instruction_ptr = reg.rip as usize;
+            let mut base_ptr = reg.rbp as usize;
+            loop {
+                let function_name = debug_data.get_function_from_addr(instruction_ptr).expect("wrong rip");
+                let path_name = debug_data.get_line_from_addr(instruction_ptr).expect("wrong rip");
+                println!("{} {}", function_name, path_name);
+                if function_name == "main" { break; }
+                instruction_ptr = ptrace::read(self.pid(), (base_ptr + 8) as ptrace::AddressType)? as usize;
+                base_ptr = ptrace::read(self.pid(), base_ptr as ptrace::AddressType)? as usize;
+            }
+        }
+        Ok(())
     }
 }
