@@ -63,8 +63,12 @@ impl Debugger {
                                     Status::Signaled(signal) => {
                                         println!("Child signaled (signal {})", signal);
                                     },
-                                    Status::Stopped(signal, _size) => {
+                                    Status::Stopped(signal, size) => {
                                         println!("Child stopped (signal {})", signal);
+                                        println!("Stopped at {} {}", 
+                                            self.debug_data.get_function_from_addr(size).expect("wrong addr"),
+                                            self.debug_data.get_line_from_addr(size).expect("wrong addr")
+                                        );
                                     }
                                 }
                             }
@@ -86,7 +90,7 @@ impl Debugger {
                             match inferior.continue_run() {
                                 Ok(message) => {
                                     if let Status::Exited(num) = message {
-                                        println!("Child exited (status {})", num);
+                                        println!("Continue: Child exited (status {})", num);
                                     }
                                 }
                                 Err(e) => { println!("{e}"); }

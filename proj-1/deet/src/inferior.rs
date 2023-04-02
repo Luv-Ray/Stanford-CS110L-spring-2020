@@ -85,8 +85,8 @@ impl Inferior {
             let mut instruction_ptr = reg.rip as usize;
             let mut base_ptr = reg.rbp as usize;
             loop {
-                let function_name = debug_data.get_function_from_addr(instruction_ptr).expect("wrong rip");
-                let path_name = debug_data.get_line_from_addr(instruction_ptr).expect("wrong rip");
+                let function_name = debug_data.get_function_from_addr(instruction_ptr).expect("wrong addr");
+                let path_name = debug_data.get_line_from_addr(instruction_ptr).expect("wrong addr");
                 println!("{} {}", function_name, path_name);
                 if function_name == "main" { break; }
                 instruction_ptr = ptrace::read(self.pid(), (base_ptr + 8) as ptrace::AddressType)? as usize;
