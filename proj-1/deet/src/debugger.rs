@@ -11,6 +11,7 @@ pub struct Debugger {
     readline: Editor<()>,
     inferior: Option<Inferior>,
     debug_data: DwarfData,
+    breakpoints: Vec<usize>,
 }
 
 impl Debugger {
@@ -39,6 +40,7 @@ impl Debugger {
             readline,
             inferior: None,
             debug_data,
+            breakpoints: Vec::new(),
         }
     }
 
@@ -106,6 +108,13 @@ impl Debugger {
                         inferior.print_backtrace(&self.debug_data).ok();
                     }
                 }
+                DebuggerCommand::Break(addr) => {
+                    if addr[0] != "*" {
+                        println!("wrong address format");
+                        continue;
+                    }
+                    let addr = parse_address(&addr[1..]);
+                }
             }
         }
     }
@@ -150,4 +159,13 @@ impl Debugger {
             }
         }
     }
+}
+
+fn parse_address(addr: &str) -> Option<usize> {
+    let addr_without_0x = if addr.to_lowercase().starts_with("0x") {
+        &addr[2..]
+    } else {
+        &addr
+    };
+    usize::from_str_radix(addr_without_0x, 16).ok()
 }
