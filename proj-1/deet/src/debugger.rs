@@ -11,7 +11,7 @@ pub struct Debugger {
     readline: Editor<()>,
     inferior: Option<Inferior>,
     debug_data: DwarfData,
-    breakpoints: Vec<usize>,
+    break_points: Vec<usize>,
 }
 
 impl Debugger {
@@ -40,82 +40,97 @@ impl Debugger {
             readline,
             inferior: None,
             debug_data,
-            breakpoints: Vec::new(),
+            break_points: Vec::new(),
         }
     }
 
     pub fn run(&mut self) {
         loop {
-            match self.get_next_command() {
-                DebuggerCommand::Run(args) => {
-                    if let Some(inferior) = self.inferior.as_mut() {
-                        inferior.kill();
-                    }
-                    if let Some(inferior) = Inferior::new(&self.target, &args) {
-                        // Create the inferior
-                        self.inferior = Some(inferior);
-                        // You may use self.inferior.as_mut().unwrap() to get a mutable reference
-                        // to the Inferior object
-                        match self.inferior.as_mut().unwrap().continue_run() {
-                            Ok(message) => {
-                                match message {
-                                    Status::Exited(num) => {
-                                        println!("Child exited (status {})", num);
-                                    },
-                                    Status::Signaled(signal) => {
-                                        println!("Child signaled (signal {})", signal);
-                                    },
-                                    Status::Stopped(signal, size) => {
-                                        println!("Child stopped (signal {})", signal);
-                                        println!("Stopped at {} {}", 
-                                            self.debug_data.get_function_from_addr(size).expect("wrong addr"),
-                                            self.debug_data.get_line_from_addr(size).expect("wrong addr")
-                                        );
-                                    }
-                                }
-                            }
-                            Err(e) => { println!("{e}"); }
-                        }
-                    } else {
-                        println!("Error starting subprocess");
-                    }
-                }
+            match self.get_next_command(){
+                DebuggerCommand::Run(args) => self.command_run(args),
+                DebuggerCommand::Continue => self.command_continue(),
+                DebuggerCommand::Backtrace => self.command_backtrace(),
+                DebuggerCommand::Break(addr) => self.command_break(addr),
                 DebuggerCommand::Quit => {
                     if let Some(inferior) = self.inferior.as_mut() {
                         inferior.kill();
                     }
                     return;
                 }
-                DebuggerCommand::Continue => {
-                    match self.inferior.as_mut() {
-                        Some(inferior) => {
-                            match inferior.continue_run() {
-                                Ok(message) => {
-                                    if let Status::Exited(num) = message {
-                                        println!("Continue: Child exited (status {})", num);
-                                    }
-                                }
-                                Err(e) => { println!("{e}"); }
-                            }
-                        }
-                        None => {
-                            println!("No process running.");
+            }
+        }
+    }
+
+    fn command_run(&mut self, args: Vec<String>) {
+        if let Some(inferior) = self.inferior.as_mut() {
+            inferior.kill();
+        }
+        if let Some(inferior) = Inferior::new(&self.target, &args, &mut self.break_points) {
+            // Create the inferior
+            self.inferior = Some(inferior);
+            // You may use self.inferior.as_mut().unwrap() to get a mutable reference
+            // to the Inferior object
+            match self.inferior.as_mut().unwrap().continue_run(&mut self.break_points) {
+                Ok(message) => {
+                    match message {
+                        Status::Exited(num) => {
+                            println!("Child exited (status {})", num);
+                        },
+                        Status::Signaled(signal) => {
+                            println!("Child signaled (signal {})", signal);
+                        },
+                        Status::Stopped(signal, size) => {
+                            println!("Child stopped (signal {})", signal);
+                            println!("Stopped at {} {}", 
+                                self.debug_data.get_function_from_addr(size).expect("wrong addr"),
+                                self.debug_data.get_line_from_addr(size).expect("wrong addr")
+                            );
                         }
                     }
                 }
-                DebuggerCommand::Backtrace => {
-                    if let Some(inferior) = self.inferior.as_mut() {
-                        inferior.print_backtrace(&self.debug_data).ok();
+                Err(e) => { println!("{e}"); }
+            }
+        } else {
+            println!("Error starting subprocess");
+        }
+    }
+
+    fn command_continue(&mut self) {
+        match self.inferior.as_mut() {
+            Some(inferior) => {
+                match inferior.continue_run(&mut self.break_points) {
+                    Ok(message) => {
+                        if let Status::Exited(num) = message {
+                            println!("Continue: Child exited (status {})", num);
+                        }
                     }
-                }
-                DebuggerCommand::Break(addr) => {
-                    if addr[0] != "*" {
-                        println!("wrong address format");
-                        continue;
-                    }
-                    let addr = parse_address(&addr[1..]);
+                    Err(e) => { println!("{e}"); }
                 }
             }
+            None => {
+                println!("No process running.");
+            }
+        }
+    }
+
+    fn command_backtrace(&mut self) {
+        if let Some(inferior) = self.inferior.as_mut() {
+            inferior.print_backtrace(&self.debug_data).ok();
+        }
+    }
+
+    fn command_break(&mut self, addr: String) {
+        if !addr.starts_with("*") {
+            println!("wrong address format");
+            return;
+        }
+        let addr_0x = parse_address(&addr[1..]);
+        if let Some(addr_0x) = addr_0x  {
+            self.break_points.push(addr_0x);
+            println!("Set breakpoint {} at {}", self.break_points.len(), addr);
+        } else {
+            println!("wrong parse address");
+            return;
         }
     }
 

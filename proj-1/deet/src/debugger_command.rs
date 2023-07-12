@@ -18,7 +18,7 @@ impl DebuggerCommand {
             }
             "c" | "cont" | "continue" => Some(DebuggerCommand::Continue),
             "bt" | "back" | "backtrace" => Some(DebuggerCommand::Backtrace),
-            "b" | "break" => Some(DebuggerCommand::Break(args[1].to_string())),
+            "b" | "break" => Some(DebuggerCommand::Break(tokens[1].to_string())),
             // Default case:
             _ => None,
         }
